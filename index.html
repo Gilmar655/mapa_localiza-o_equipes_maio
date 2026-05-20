@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mapa de Localização de Equipes | Enel</title>
+  <link rel="preconnect" href="https://unpkg.com">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <style>
+    :root {
+      --enel-blue:#0555FA; --enel-green:#008556; --enel-red:#E61400; --ink:#172033;
+      --muted:#64748b; --line:#e2e8f0; --bg:#f4f7fb; --card:#ffffff; --soft:#eef4ff;
+    }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:Inter, Segoe UI, Arial, sans-serif; background:var(--bg); color:var(--ink); }
+    header { background:linear-gradient(135deg, #0555FA 0%, #157EA3 55%, #008556 100%); color:white; padding:24px 5vw 28px; position:relative; overflow:hidden; }
+    header:after { content:""; position:absolute; right:-120px; top:-120px; width:320px; height:320px; border-radius:50%; background:rgba(255,255,255,.12); }
+    .brand { display:flex; gap:14px; align-items:center; position:relative; z-index:1; }
+    .logo { width:48px; height:48px; border-radius:16px; background:white; color:var(--enel-blue); display:grid; place-items:center; font-size:28px; font-weight:900; box-shadow:0 12px 28px rgba(0,0,0,.18); }
+    h1 { margin:18px 0 8px; font-size:clamp(1.7rem, 3vw, 3rem); line-height:1.05; position:relative; z-index:1; }
+    .subtitle { max-width:960px; color:#eef6ff; font-size:1.02rem; margin:0; position:relative; z-index:1; }
+    main { width:min(1380px, 94vw); margin:-26px auto 36px; position:relative; z-index:2; }
+    .kpis { display:grid; grid-template-columns:repeat(5, minmax(150px,1fr)); gap:14px; margin-bottom:16px; }
+    .kpi, .panel { background:var(--card); border:1px solid var(--line); border-radius:22px; box-shadow:0 10px 28px rgba(15,23,42,.08); }
+    .kpi { padding:18px; } .kpi strong { display:block; font-size:1.85rem; color:var(--enel-blue); } .kpi span { color:var(--muted); font-size:.92rem; }
+    .panel { padding:18px; margin:16px 0; }
+    .panel-title { display:flex; justify-content:space-between; gap:12px; align-items:flex-end; margin-bottom:14px; }
+    h2 { margin:0; font-size:1.18rem; } .hint { color:var(--muted); font-size:.92rem; }
+    .filters { display:grid; grid-template-columns:1.7fr repeat(6, minmax(140px, 1fr)); gap:10px; }
+    input, select, button { width:100%; border:1px solid var(--line); background:white; border-radius:14px; padding:11px 12px; font-size:.94rem; outline:none; }
+    button { cursor:pointer; font-weight:700; color:white; background:var(--enel-blue); border-color:transparent; }
+    button.secondary { background:#0f172a; }
+    .actions { display:grid; grid-template-columns:repeat(3, minmax(150px, 1fr)); gap:10px; margin-top:10px; max-width:620px; }
+    #map { height:520px; border-radius:20px; border:1px solid var(--line); overflow:hidden; }
+    .map-grid { display:grid; grid-template-columns:1.7fr .9fr; gap:14px; }
+    .my-maps { width:100%; height:520px; border:0; border-radius:20px; background:#e5e7eb; }
+    .cards { display:grid; grid-template-columns:repeat(3, minmax(250px, 1fr)); gap:14px; }
+    .work-card { border:1px solid var(--line); border-radius:20px; padding:15px; background:white; box-shadow:0 6px 20px rgba(15,23,42,.05); }
+    .badge { display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:5px 9px; font-size:.75rem; font-weight:800; background:var(--soft); color:var(--enel-blue); margin:0 6px 8px 0; }
+    .work-card h3 { margin:4px 0 8px; font-size:1rem; }
+    .meta { display:grid; grid-template-columns:1fr 1fr; gap:6px 10px; font-size:.86rem; color:#334155; }
+    .meta b { color:#0f172a; }
+    .table-wrap { overflow:auto; border:1px solid var(--line); border-radius:18px; }
+    table { border-collapse:collapse; width:100%; min-width:1150px; background:white; }
+    th, td { padding:10px 12px; border-bottom:1px solid var(--line); text-align:left; font-size:.88rem; vertical-align:top; }
+    th { background:#f8fafc; color:#0f172a; position:sticky; top:0; z-index:1; }
+    tr:hover td { background:#fbfdff; }
+    footer { text-align:center; color:var(--muted); padding:24px; font-size:.9rem; }
+    @media (max-width:1100px) { .kpis { grid-template-columns:repeat(2,1fr); } .filters { grid-template-columns:1fr 1fr; } .map-grid { grid-template-columns:1fr; } .cards { grid-template-columns:1fr 1fr; } }
+    @media (max-width:680px) { main { width:94vw; } .kpis, .filters, .actions, .cards { grid-template-columns:1fr; } header { padding:20px 5vw 44px; } #map, .my-maps { height:420px; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand"><div class="logo">E</div><div><strong>Enel</strong><br><span>Portal de acompanhamento de obras</span></div></div>
+    <h1>Mapa de Localização de Equipes em Campo</h1>
+    <p class="subtitle">Consulta rápida da programação de obras com filtros por projeto, data, status, tipo de intervenção, contratada, família e Técnico Enel. Segurança em 1º lugar. Vida em 1º lugar.</p>
+  </header>
+
+  <main>
+    <section class="kpis" id="kpis"></section>
+
+    <section class="panel">
+      <div class="panel-title"><div><h2>Filtros de localização</h2><div class="hint">Use os filtros para localizar rapidamente as equipes e atividades programadas.</div></div><strong id="visibleCount"></strong></div>
+      <div class="filters">
+        <input id="search" placeholder="Buscar projeto, PowerON, equipamento ou descrição" />
+        <select id="contratada"><option value="">Contratada: todas</option></select>
+        <select id="data"><option value="">Data: todas</option></select>
+        <select id="status"><option value="">Status: todos</option></select>
+        <select id="tipo"><option value="">Tipo intervenção: todos</option></select>
+        <select id="familia"><option value="">Família: todas</option></select>
+        <select id="tecnico"><option value="">Técnico Enel: todos</option></select>
+      </div>
+      <div class="actions">
+        <button onclick="clearFilters()">Limpar filtros</button>
+        <button class="secondary" onclick="exportCSV()">Exportar CSV filtrado</button>
+        <button class="secondary" onclick="window.print()">Imprimir / PDF</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title"><div><h2>Mapa das equipes</h2><div class="hint">Marcadores gerados a partir das coordenadas da planilha. O My Maps oficial também fica incorporado para consulta operacional.</div></div><a href="https://www.google.com/maps/d/viewer?mid=10HwNRTu34UfYUParmwc_21swb9OrORy8&usp=sharing" target="_blank">Abrir My Maps</a></div>
+      <div class="map-grid">
+        <div id="map"></div>
+        <iframe class="my-maps" src="https://www.google.com/maps/d/embed?mid=10HwNRTu34UfYUParmwc_21swb9OrORy8&ehbc=2E312F" loading="lazy"></iframe>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title"><div><h2>Painel de acompanhamento</h2><div class="hint">Principais informações operacionais das equipes filtradas.</div></div></div>
+      <div class="cards" id="cards"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-title"><div><h2>Tabela completa</h2><div class="hint">Base da programação preservando os campos principais da planilha.</div></div></div>
+      <div class="table-wrap"><table id="table"></table></div>
+    </section>
+  </main>
+  <footer>Portal de localização de equipes — atualizado a partir da planilha Programação_21-05-2026.xlsx. Último acesso: <span id="now"></span>.</footer>
+
+<script>
+const obras = [{"projeto": "DAC/A.LES.25.00325", "descricao": "Alteração de Carga", "data": "21/05/2026", "dataISO": "2026-05-21", "status": "Liberado para Execução", "tipo": "FI", "poweron": "16168559", "equipamentos": "352ET031773", "inicio": "10:00", "fim": "13:59", "contratada": "Start Engenharia (Área 8B, 9  e 11) NEC", "contratadaGrupo": "Start Engenharia", "longitude": -46.40792096, "latitude": -23.50369018, "tecnicoEnel": "Valdir", "familia": "MV Leste"}, {"projeto": "DMP/A.LES.25.03534", "descricao": "Reforma de Rede Secundaria RTRI", "data": "21/05/2026", "dataISO": "2026-05-21", "status": "Liberado para Execução", "tipo": "FI", "poweron": "16168643", "equipamentos": "356BF016090", "inicio": "10:30", "fim": "14:30", "contratada": "Engelmig (Área 11) NEC e UPS", "contratadaGrupo": "Engelmig", "longitude": -46.6402079520733, "latitude": -23.5488854506095, "tecnicoEnel": "Valdir", "familia": "MV Leste"}, {"projeto": "DMP/A.LES.25.03588", "descricao": "Reforma de Rede Secundaria RTRI", "data": "21/05/2026", "dataISO": "2026-05-21", "status": "Liberado para Execução", "tipo": "FI", "poweron": "16168643", "equipamentos": "356BF016090", "inicio": "10:30", "fim": "14:30", "contratada": "Engelmig (Área 11) NEC e UPS", "contratadaGrupo": "Engelmig", "longitude": -46.6402079520733, "latitude": -23.5488854506095, "tecnicoEnel": "Valdir", "familia": "MV Leste"}, {"projeto": "DAC/A.LES.25.00400", "descricao": "Ligação Nova", "data": "21/05/2026", "dataISO": "2026-05-21", "status": "Liberado para Execução", "tipo": "PIE", "poweron": "16178793", "equipamentos": "353ET035533", "inicio": "10:00", "fim": "13:59", "contratada": "Conecta Obras Extras (Área 8B, 9 e 11) NEC", "contratadaGrupo": "Conecta", "longitude": -46.49713707, "latitude": -23.52855069, "tecnicoEnel": "Valdir", "familia": "MV Leste"}, {"projeto": "DAC/A.LES.25.01054", "descricao": "Migração para Média Tensão", "data": "21/05/2026", "dataISO": "2026-05-21", "status": "Liberado para Execução", "tipo": "FI", "poweron": "16168494", "equipamentos": "010ET229981", "inicio": "09:00", "fim": "13:00", "contratada": "Start Engenharia (Área 8B, 9  e 11) NEC", "contratadaGrupo": "Start Engenharia", "longitude": -46.49607374, "latitude": -23.6813148, "tecnicoEnel": "Valdir", "familia": "MV Leste"}, {"projeto": "DMP/A.LES.25.01391", "descricao": "Reforma de Rede Secundária", "data": "21/05/2026", "dataISO": "2026-05-21", "status": "Liberado para Execução", "tipo": "FI", "poweron": "16156361", "equipamentos": "010ET043433", "inicio": "13:59", "fim": "16:00", "contratada": "Start Engenharia (Área 8B, 9  e 11) NEC", "contratadaGrupo": "Start Engenharia", "longitude": -46.46529305, "latitude": -23.7639133, "tecnicoEnel": "Valdir", "familia": "MV Leste"}, {"projeto": "DAC/A.LES.21.00068", "descricao": "Regularização de Ligações Informais", "data": "21/05/2026", "dataISO": "2026-05-21", "status": "Liberado para Execução", "tipo": "FI", "poweron": "16156613", "equipamentos": "025ET018506", "inicio": "10:00", "fim": "13:59", "contratada": "Start Engenharia (Área 8B, 9  e 11) NEC", "contratadaGrupo": "Start Engenharia", "longitude": -46.35607817, "latitude": -23.7364833, "tecnicoEnel": "Valdir", "familia": "MV Leste"}, {"projeto": "DAC/A.NOR.26.00317", "descricao": "Ligação Nova", "data": "21/05/2026", "dataISO": "2026-05-21", "status": "Liberado para Execução", "tipo": "FI", "poweron": "16168672", "equipamentos": "257BF061057", "inicio": "10:00", "fim": "13:59", "contratada": "Conecta Obras (Área 4 e 5) NEC", "contratadaGrupo": "Conecta", "longitude": -46.6180035928144, "latitude": -23.5663083875099, "tecnicoEnel": "Valdir", "familia": "MV Norte"}, {"projeto": "DAC/A.NOR.25.01579", "descricao": "Migração para Média Tensão", "data": "21/05/2026", "dataISO": "2026-05-21", "status": "Liberado para Execução", "tipo": "FI", "poweron": "16175100", "equipamentos": "251ET054611", "inicio": "10:00", "fim": "13:59", "contratada": "Conecta Obras (Área 4 e 5) NEC", "contratadaGrupo": "Conecta", "longitude": -46.66798037, "latitude": -23.61454169, "tecnicoEnel": "Valdir", "familia": "MV Norte"}, {"projeto": "DAC/A.NOR.25.01448", "descricao": "Ligação Nova", "data": "21/05/2026", "dataISO": "2026-05-21", "status": "Liberado para Execução", "tipo": "FI", "poweron": "16175100", "equipamentos": "251ET054611", "inicio": "10:00", "fim": "13:59", "contratada": "Conecta Obras (Área 4 e 5) NEC", "contratadaGrupo": "Conecta", "longitude": -46.66798037, "latitude": -23.61454169, "tecnicoEnel": "Valdir", "familia": "MV Norte"}, {"projeto": "DAC/A.NOR.23.00780", "descricao": "Afastamento de Rede (Clientes)", "data": "21/05/2026", "dataISO": "2026-05-21", "status": "Liberado para Execução", "tipo": "FI", "poweron": "16178013", "equipamentos": "351ET033132", "inicio": "10:00", "fim": "13:59", "contratada": "Conecta Obras Extras (Área 4 e 5) NEC", "contratadaGrupo": "Conecta", "longitude": -46.66575552, "latitude": -23.47590962, "tecnicoEnel": "Valdir", "familia": "MV Norte"}, {"projeto": "DAC/A.NOR.25.01475", "descricao": "Alteração de Carga", "data": "21/05/2026", "dataISO": "2026-05-21", "status": "Liberado para Execução", "tipo": "FI", "poweron": "16174713", "equipamentos": "257ET070816", "inicio": "10:00", "fim": "13:59", "contratada": "Conecta Obras (Área 4 e 5) NEC", "contratadaGrupo": "Conecta", "longitude": -46.65045909, "latitude": -23.57073959, "tecnicoEnel": "Valdir", "familia": "MV Norte"}, {"projeto": "DAC/A.NOR.25.01350", "descricao": "Ligação Provisória", "data": "21/05/2026", "dataISO": "2026-05-21", "status": "Liberado para Execução", "tipo": "BRA", "poweron": "16235408", "equipamentos": "ET-007525", "inicio": "09:00", "fim": "16:59", "contratada": "Conecta Obras (Área 4 e 5) NEC", "contratadaGrupo": "Conecta", "longitude": null, "latitude": null, "tecnicoEnel": "Eduardo", "familia": "MV Norte"}, {"projeto": "DMP/A.LES.25.01117", "descricao": "Rede Compacta", "data": "21/05/2026", "dataISO": "2026-05-21", "status": "Liberado para Execução", "tipo": "BRA", "poweron": "16235050", "equipamentos": "353ET028822", "inicio": "09:00", "fim": "16:59", "contratada": "Conecta Obras Extras (Área 8B, 9 e 11) NEC", "contratadaGrupo": "Conecta", "longitude": -46.60658111, "latitude": -23.53519538, "tecnicoEnel": "Eduardo", "familia": "MV Leste"}, {"projeto": "DAC/A.LES.25.00623", "descricao": "Ligação Nova", "data": "21/05/2026", "dataISO": "2026-05-21", "status": "Liberado para Execução", "tipo": "PIE", "poweron": "16184374", "equipamentos": "353ET000373", "inicio": "00:29", "fim": "04:30", "contratada": "Start Engenharia (Área 8B, 9  e 11) NEC", "contratadaGrupo": "Start Engenharia", "longitude": -46.62467463, "latitude": -23.54837555, "tecnicoEnel": "Eduardo", "familia": "MV Leste"}, {"projeto": "DAC/A.NOR.26.00446", "descricao": "Alteração de Carga", "data": "21/05/2026", "dataISO": "2026-05-21", "status": "Liberado para Execução", "tipo": "BRA", "poweron": "16234734", "equipamentos": "152ET038070", "inicio": "09:00", "fim": "16:59", "contratada": "Conecta Obras (Área 4 e 5) NEC", "contratadaGrupo": "Conecta", "longitude": -46.65977403, "latitude": -23.53710533, "tecnicoEnel": "Eduardo", "familia": "MV Norte"}, {"projeto": "DAC/A.NOR.25.01712", "descricao": "Remoção de Posto Primário", "data": "21/05/2026", "dataISO": "2026-05-21", "status": "Liberado para Execução", "tipo": "BRA", "poweron": "16235079", "equipamentos": "354EP010096", "inicio": "07:59", "fim": "16:59", "contratada": "Conecta Obras (Área 4 e 5) NEC", "contratadaGrupo": "Conecta", "longitude": null, "latitude": null, "tecnicoEnel": "Eduardo", "familia": "MV Norte"}, {"projeto": "DAC/A.NOR.25.01321", "descricao": "Ligação Nova", "data": "21/05/2026", "dataISO": "2026-05-21", "status": "Liberado para Execução", "tipo": "BRA", "poweron": "16234681", "equipamentos": "251ET004915", "inicio": "09:00", "fim": "16:59", "contratada": "Conecta Obras (Área 4 e 5) NEC", "contratadaGrupo": "Conecta", "longitude": -46.66815042, "latitude": -23.6226536, "tecnicoEnel": "Eduardo", "familia": "MV Norte"}, {"projeto": "DAC/A.NOR.23.00698", "descricao": "Afastamento de Rede (Clientes)", "data": "21/05/2026", "dataISO": "2026-05-21", "status": "Liberado para Documentação", "tipo": "PIE", "poweron": "RESOLVIDO", "equipamentos": "351CF009133", "inicio": "10:00", "fim": "13:59", "contratada": "Conecta Obras Extras (Área 4 e 5) NEC", "contratadaGrupo": "Conecta", "longitude": -46.6639819390341, "latitude": -23.4761541597327, "tecnicoEnel": "Eduardo", "familia": "MV Norte"}, {"projeto": "DAC/A.NOR.23.00781", "descricao": "Afastamento de Rede (Clientes)", "data": "21/05/2026", "dataISO": "2026-05-21", "status": "Liberado para Execução", "tipo": "PIE", "poweron": "RESOLVIDO", "equipamentos": "351CF009133", "inicio": "10:00", "fim": "13:59", "contratada": "Conecta Obras Extras (Área 4 e 5) NEC", "contratadaGrupo": "Conecta", "longitude": -46.6639819390341, "latitude": -23.4761541597327, "tecnicoEnel": "Eduardo", "familia": "MV Norte"}, {"projeto": "DAC/A.NOR.23.00635", "descricao": "Afastamento de Rede (Clientes)", "data": "21/05/2026", "dataISO": "2026-05-21", "status": "Liberado para Execução", "tipo": "FI", "poweron": "RESOLVIDO", "equipamentos": "351BF052354", "inicio": "13:00", "fim": "15:29", "contratada": "Conecta Obras Extras (Área 4 e 5) NEC", "contratadaGrupo": "Conecta", "longitude": -46.6676224933483, "latitude": -23.4762445679979, "tecnicoEnel": "Eduardo", "familia": "MV Norte"}, {"projeto": "DAC/A.LES.26.00209", "descricao": "Ligação Nova", "data": "21/05/2026", "dataISO": "2026-05-21", "status": "Liberado para Execução", "tipo": "BRA", "poweron": "16222689", "equipamentos": "356ET062926", "inicio": "10:00", "fim": "12:00", "contratada": "Start Engenharia (Área 8B, 9  e 11) NEC", "contratadaGrupo": "Start Engenharia", "longitude": -46.47907602, "latitude": -23.59411624, "tecnicoEnel": "Eduardo", "familia": "MV Leste"}, {"projeto": "DAC/A.LES.25.00923", "descricao": "Migração para Média Tensão", "data": "21/05/2026", "dataISO": "2026-05-21", "status": "Liberado para Execução", "tipo": "BRA", "poweron": "16206505", "equipamentos": "352ET005860", "inicio": "10:00", "fim": "15:00", "contratada": "Start Engenharia (Área 8B, 9  e 11) NEC", "contratadaGrupo": "Start Engenharia", "longitude": -46.442595, "latitude": -23.50177441, "tecnicoEnel": "Eduardo", "familia": "MV Leste"}, {"projeto": "DAC/A.NOR.22.01134", "descricao": "Afastamento de Rede (Clientes)", "data": "21/05/2026", "dataISO": "2026-05-21", "status": "Liberado para Execução", "tipo": "PIE", "poweron": "RESOLVIDO", "equipamentos": "351EP050763", "inicio": "10:30", "fim": "14:30", "contratada": "Conecta Obras Extras (Área 4 e 5) NEC", "contratadaGrupo": "Conecta", "longitude": null, "latitude": null, "tecnicoEnel": "Eduardo", "familia": "MV Norte"}, {"projeto": "DAC/A.NOR.23.00780", "descricao": "Afastamento de Rede (Clientes)", "data": "21/05/2026", "dataISO": "2026-05-21", "status": "Liberado para Execução", "tipo": "FI", "poweron": "RESOLVIDO", "equipamentos": "351ET033132", "inicio": "10:00", "fim": "12:29", "contratada": "Conecta Obras Extras (Área 4 e 5) NEC", "contratadaGrupo": "Conecta", "longitude": -46.66575552, "latitude": -23.47590962, "tecnicoEnel": "Eduardo", "familia": "MV Norte"}, {"projeto": "DAC/A.NOR.26.00602", "descricao": "Afastamento de Rede (Clientes)", "data": "21/05/2026", "dataISO": "2026-05-21", "status": "Liberado para Execução", "tipo": "FI", "poweron": "RESOLVIDO", "equipamentos": "354ET052033", "inicio": "10:00", "fim": "13:59", "contratada": "Conecta Obras (Área 4 e 5) NEC", "contratadaGrupo": "Conecta", "longitude": -46.66155978, "latitude": -23.47959948, "tecnicoEnel": "Eduardo", "familia": "MV Norte"}];
+const myMapsUrl = "https://www.google.com/maps/d/viewer?mid=10HwNRTu34UfYUParmwc_21swb9OrORy8&usp=sharing";
+const fields = ['contratada','data','status','tipo','familia','tecnico'];
+const selectMap = { contratada:'contratadaGrupo', data:'data', status:'status', tipo:'tipo', familia:'familia', tecnico:'tecnicoEnel' };
+let map = L.map('map');
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(map);
+let layer = L.layerGroup().addTo(map);
+
+function uniq(arr) { return [...new Set(arr.filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR')); }
+function populateFilters() {
+  fields.forEach(id => {
+    const sel = document.getElementById(id);
+    uniq(obras.map(o => o[selectMap[id]])).forEach(v => { const opt = document.createElement('option'); opt.value=v; opt.textContent=v; sel.appendChild(opt); });
+    sel.addEventListener('change', render);
+  });
+  document.getElementById('search').addEventListener('input', render);
+}
+function filtered() {
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  return obras.filter(o => {
+    const text = [o.projeto,o.descricao,o.poweron,o.equipamentos,o.contratada,o.tecnicoEnel].join(' ').toLowerCase();
+    if (q && !text.includes(q)) return false;
+    return fields.every(id => !document.getElementById(id).value || o[selectMap[id]] === document.getElementById(id).value);
+  });
+}
+function renderKPIs(data) {
+  const withCoord = data.filter(o => Number.isFinite(o.latitude) && Number.isFinite(o.longitude)).length;
+  const kpis = [
+    ['Registros visíveis', data.length], ['Com coordenada', withCoord], ['Contratadas', uniq(data.map(o=>o.contratadaGrupo)).length], ['Técnicos Enel', uniq(data.map(o=>o.tecnicoEnel)).length], ['Tipos de intervenção', uniq(data.map(o=>o.tipo)).length]
+  ];
+  document.getElementById('kpis').innerHTML = kpis.map(k=>`<div class="kpi"><strong>${k[1]}</strong><span>${k[0]}</span></div>`).join('');
+  document.getElementById('visibleCount').textContent = `${data.length} registros visíveis`;
+}
+function markerColor(grupo) { if(grupo.includes('Start')) return '#0555FA'; if(grupo.includes('Engelmig')) return '#E61400'; if(grupo.includes('Conecta')) return '#008556'; return '#64748b'; }
+function markerIcon(color) { return L.divIcon({className:'', html:`<div style="width:18px;height:18px;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 2px 9px #0005"></div>`, iconSize:[18,18], iconAnchor:[9,9]}); }
+function renderMap(data) {
+  layer.clearLayers();
+  const coords=[];
+  data.forEach(o => {
+    if(Number.isFinite(o.latitude) && Number.isFinite(o.longitude)) {
+      const m = L.marker([o.latitude, o.longitude], { icon: markerIcon(markerColor(o.contratadaGrupo)) }).bindPopup(`<b>${o.projeto}</b><br>${o.descricao}<br><b>Data:</b> ${o.data} | ${o.inicio}-${o.fim}<br><b>Contratada:</b> ${o.contratadaGrupo}<br><b>Técnico Enel:</b> ${o.tecnicoEnel}<br><b>PowerON:</b> ${o.poweron}`);
+      m.addTo(layer); coords.push([o.latitude, o.longitude]);
+    }
+  });
+  if(coords.length) map.fitBounds(coords, {padding:[30,30]}); else map.setView([-23.55,-46.63], 10);
+}
+function renderCards(data) {
+  document.getElementById('cards').innerHTML = data.slice(0, 12).map(o => `<article class="work-card">
+    <span class="badge">${o.contratadaGrupo}</span><span class="badge">${o.tipo}</span><span class="badge">${o.tecnicoEnel || 'Técnico não informado'}</span>
+    <h3>${o.projeto}</h3><p>${o.descricao}</p>
+    <div class="meta"><span><b>Data:</b> ${o.data}</span><span><b>Horário:</b> ${o.inicio}–${o.fim}</span><span><b>Status:</b> ${o.status}</span><span><b>PowerON:</b> ${o.poweron}</span><span><b>Equip.:</b> ${o.equipamentos}</span><span><b>Família:</b> ${o.familia}</span></div>
+  </article>`).join('') || '<p>Nenhum registro encontrado para os filtros aplicados.</p>';
+}
+function renderTable(data) {
+  const head = ['Projeto','Descrição','Data','Status','Tipo','PowerON','Equipamentos','Início','Fim','Contratada','Técnico Enel','Longitude','Latitude'];
+  const rows = data.map(o => [o.projeto,o.descricao,o.data,o.status,o.tipo,o.poweron,o.equipamentos,o.inicio,o.fim,o.contratadaGrupo,o.tecnicoEnel,o.longitude,o.latitude]);
+  document.getElementById('table').innerHTML = `<thead><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c ?? ''}</td>`).join('')}</tr>`).join('')}</tbody>`;
+}
+function render() { const data = filtered(); renderKPIs(data); renderMap(data); renderCards(data); renderTable(data); }
+function clearFilters() { document.getElementById('search').value=''; fields.forEach(id => document.getElementById(id).value=''); render(); }
+function exportCSV() {
+  const rows = [['Projeto','Descrição','Data','Status','Tipo','PowerON','Equipamentos','Início','Fim','Contratada','Técnico Enel','Longitude','Latitude'], ...filtered().map(o=>[o.projeto,o.descricao,o.data,o.status,o.tipo,o.poweron,o.equipamentos,o.inicio,o.fim,o.contratadaGrupo,o.tecnicoEnel,o.longitude,o.latitude])];
+  const csv = rows.map(r => r.map(v => `"${String(v ?? '').replaceAll('"','""')}"`).join(';')).join('
+');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='obras_filtradas.csv'; a.click(); URL.revokeObjectURL(a.href);
+}
+document.getElementById('now').textContent = new Date().toLocaleString('pt-BR');
+populateFilters(); render();
+</script>
+</body>
+</html>
